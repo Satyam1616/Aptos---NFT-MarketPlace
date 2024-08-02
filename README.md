@@ -1,216 +1,270 @@
+Full Stack NFT Marketplace
 
-# Full-Stack NFT Marketplace on Aptos
+### Prerequisites
+- **Node.js**: v14 or higher
+- **Aptos CLI**: Follow the [installation guide](https://aptos.dev/cli-tools/aptos-cli-tool/install-aptos-cli/) to set up the Aptos CLI.
+- **Aptos SDK**: JavaScript/TypeScript SDK for interacting with the Aptos blockchain.
 
-My Address: 0x16bcbd5cb23d8f5fd032d7f542581b49338e0652558dbd000699ceab302f46b4
+### Step 1: Initialize a new project
 
-Welcome to the Full-Stack NFT Marketplace built on the Aptos blockchain! This repository contains the source code for a complete decentralized application (dApp) that allows users to create, buy, sell, and trade NFTs.
+1. **Create a new directory for your project**:
+   ```bash
+   mkdir aptos-nft-marketplace
+   cd aptos-nft-marketplace
+   ```
 
-## Table of Contents
+2. **Initialize a Node.js project**:
+   ```bash
+   npm init -y
+   ```
 
-- [Introduction](#introduction)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Architecture](#architecture)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Backend Setup](#backend-setup)
-  - [Frontend Setup](#frontend-setup)
-  - [Smart Contract Deployment](#smart-contract-deployment)
-  - [Configuration](#configuration)
-- [Usage](#usage)
-- [Testing](#testing)
-- [Contributing](#contributing)
-- [License](#license)
-- [Acknowledgements](#acknowledgements)
+3. **Install necessary dependencies**:
+   ```bash
+   npm install @aptos-labs/aptos @aptos-labs/aptos-token --save
+   ```
 
-## Introduction
+### Step 2: Write Smart Contracts
 
-The Full-Stack NFT Marketplace is a decentralized application that leverages the Aptos blockchain to provide a secure and user-friendly platform for creating, buying, selling, and trading Non-Fungible Tokens (NFTs). This marketplace includes both frontend and backend components, along with smart contracts deployed on the Aptos network.
+1. **Create a new directory for Move modules**:
+   ```bash
+   mkdir move
+   cd move
+   aptos move init
+   ```
+
+2. **Write the NFT Marketplace smart contract** in `move/sources/NFTMarketplace.move`:
+
+   ```move
+   module NFTMarketplace::Marketplace {
+       use 0x1::Account;
+       use 0x1::Event;
+       use 0x1::Token;
+       use 0x1::Signer;
+
+       struct Listing has key {
+           seller: address,
+           price: u64,
+           token_id: u64,
+       }
+
+       public fun list_for_sale(account: &signer, token_id: u64, price: u64) {
+           let seller = Signer::address_of(account);
+           let listing = Listing {
+               seller,
+               price,
+               token_id,
+           };
+           move_to(&signer, listing);
+       }
+
+       public fun buy(seller: address, token_id: u64, buyer: &signer, payment: u64) {
+           let buyer_address = Signer::address_of(buyer);
+
+           // Logic to transfer token from seller to buyer
+           Token::transfer(seller, buyer_address, token_id);
+           
+           // Transfer payment from buyer to seller
+           Account::transfer(buyer, seller, payment);
+       }
+   }
+   ```
+
+3. **Build and test your Move module**:
+   ```bash
+   aptos move compile
+   aptos move test
+   ```
+
+### Step 3: Deploy Smart Contract
+
+1. **Deploy the smart contract to the Aptos network**:
+   ```bash
+   aptos move publish --package-dir move --profile default
+   ```
+
+### Step 4: Develop the Backend
+
+1. **Create a file `index.js` for your backend logic**:
+
+   ```javascript
+   const { AptosClient, AptosAccount, FaucetClient, TokenClient } = require('@aptos-labs/aptos');
+
+   const client = new AptosClient('https://fullnode.devnet.aptoslabs.com');
+   const faucetClient = new FaucetClient('https://faucet.devnet.aptoslabs.com', client);
+   const tokenClient = new TokenClient(client);
+
+   async function listForSale(account, tokenId, price) {
+       // Call the list_for_sale function on-chain
+       const payload = {
+           type: "entry_function_payload",
+           function: "0xYourAddress::Marketplace::list_for_sale",
+           arguments: [tokenId, price],
+       };
+
+       const txn = await client.generateTransaction(account.address(), payload);
+       const signedTxn = await client.signTransaction(account, txn);
+       const transactionRes = await client.submitTransaction(signedTxn);
+       await client.waitForTransaction(transactionRes.hash);
+
+       console.log("Listed token for sale:", tokenId);
+   }
+
+   async function buyToken(seller, tokenId, buyer, payment) {
+       // Call the buy function on-chain
+       const payload = {
+           type: "entry_function_payload",
+           function: "0xYourAddress::Marketplace::buy",
+           arguments: [seller, tokenId, payment],
+       };
+
+       const txn = await client.generateTransaction(buyer.address(), payload);
+       const signedTxn = await client.signTransaction(buyer, txn);
+       const transactionRes = await client.submitTransaction(signedTxn);
+       await client.waitForTransaction(transactionRes.hash);
+
+       console.log("Bought token:", tokenId);
+   }
+
+   module.exports = { listForSale, buyToken };
+   ```
+
+### Step 5: Develop the Frontend
+
+1. **Set up a frontend with React**:
+
+   ```bash
+   npx create-react-app aptos-nft-marketplace-frontend
+   cd aptos-nft-marketplace-frontend
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install @aptos-labs/aptos --save
+   ```
+
+3. **Create a simple interface** in `src/App.js`:
+
+   ```javascript
+   import React, { useState } from 'react';
+   import { AptosClient } from '@aptos-labs/aptos';
+
+   const client = new AptosClient('https://fullnode.devnet.aptoslabs.com');
+
+   function App() {
+       const [tokenId, setTokenId] = useState('');
+       const [price, setPrice] = useState('');
+       const [seller, setSeller] = useState('');
+       const [buyer, setBuyer] = useState('');
+
+       const handleListForSale = async () => {
+           // List token for sale logic
+       };
+
+       const handleBuyToken = async () => {
+           // Buy token logic
+       };
+
+       return (
+           <div className="App">
+               <h1>NFT Marketplace</h1>
+               <input placeholder="Token ID" value={tokenId} onChange={(e) => setTokenId(e.target.value)} />
+               <input placeholder="Price" value={price} onChange={(e) => setPrice(e.target.value)} />
+               <button onClick={handleListForSale}>List for Sale</button>
+
+               <input placeholder="Seller" value={seller} onChange={(e) => setSeller(e.target.value)} />
+               <input placeholder="Buyer" value={buyer} onChange={(e) => setBuyer(e.target.value)} />
+               <button onClick={handleBuyToken}>Buy Token</button>
+           </div>
+       );
+   }
+
+   export default App;
+   ```
+
+4. **Run the frontend**:
+   ```bash
+   npm start
+   ```
+
+### Step 6: Testing and Deployment
+
+1. **Test your marketplace locally or on a testnet**.
+2. **Deploy the frontend to a web server**.
+3. **Deploy the backend if necessary** (e.g., using services like Heroku, Vercel, or your own server).
+
+### Step 7: README File
+
+Here’s a basic `README.md` file to include in your project:
+
+```markdown
+# Aptos NFT Marketplace
+
+This project is an NFT marketplace built on the Aptos blockchain. Users can list their NFTs for sale and buy NFTs listed by others.
 
 ## Features
 
-- **Create NFTs**: Mint new NFTs with customizable metadata.
-- **Buy & Sell**: List NFTs for sale and purchase them from other users.
-- **Auctions**: Participate in NFT auctions with bidding functionality.
-- **Wallet Integration**: Connect and interact with various cryptocurrency wallets.
-- **Secure Transactions**: Utilize the Aptos blockchain for secure and transparent transactions.
-- **User Profiles**: Create and manage user profiles with NFT collections.
-- **Responsive Design**: Access the marketplace from any device with a responsive UI.
+- **List NFT for Sale**: Users can list their NFTs for sale with a specified price.
+- **Buy NFT**: Users can purchase listed NFTs by paying the listed price.
 
-## Tech Stack
+## Prerequisites
 
-- **Frontend**: React, Redux, Tailwind CSS
-- **Backend**: Node.js, Express, MongoDB
-- **Smart Contracts**: Move language on the Aptos blockchain
-- **Wallet Integration**: Aptos wallets (Martian, Pontem, etc.)
-- **Authentication**: JWT, OAuth
-- **Deployment**: Docker, Kubernetes
+- Node.js v14 or higher
+- Aptos CLI
+- Aptos SDK for JavaScript
 
-## Architecture
+## Installation
 
-The application consists of three main components:
+1. Clone the repository:
 
-1. **Frontend**: A React-based single-page application (SPA) that interacts with the backend and smart contracts.
-2. **Backend**: An Express server that handles API requests, user authentication, and database interactions.
-3. **Smart Contracts**: Move-based contracts deployed on the Aptos blockchain to handle NFT minting, buying, selling, and auctions.
-
-## Getting Started
-
-### Prerequisites
-
-Before you begin, ensure you have the following prerequisites installed:
-
-- [Node.js](https://nodejs.org/) (v14 or later)
-- [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
-- [Docker](https://www.docker.com/)
-- [Aptos CLI](https://aptos.dev/cli)
-- [MongoDB](https://www.mongodb.com/) (for local development)
-
-### Backend Setup
-
-1. **Clone the Repository**
-
-   ```sh
+   ```bash
    git clone https://github.com/yourusername/aptos-nft-marketplace.git
-   cd aptos-nft-marketplace/backend
+   cd aptos-nft-marketplace
    ```
 
-2. **Install Dependencies**
+2. Install dependencies:
 
-   ```sh
+   ```bash
    npm install
-   # or
-   yarn install
    ```
 
-3. **Environment Variables**
+3. Set up the Aptos Move environment:
 
-   Create a `.env` file in the `backend` directory and add the necessary environment variables:
-
-   ```sh
-   PORT=5000
-   MONGO_URI=mongodb://localhost:27017/aptos-nft-marketplace
-   JWT_SECRET=your_jwt_secret
-   APTOS_NODE_URL=https://fullnode.devnet.aptoslabs.com
+   ```bash
+   cd move
+   aptos move init
    ```
-
-4. **Start the Backend Server**
-
-   ```sh
-   npm start
-   # or
-   yarn start
-   ```
-
-### Frontend Setup
-
-1. **Navigate to the Frontend Directory**
-
-   ```sh
-   cd ../frontend
-   ```
-
-2. **Install Dependencies**
-
-   ```sh
-   npm install
-   # or
-   yarn install
-   ```
-
-3. **Environment Variables**
-
-   Create a `.env` file in the `frontend` directory and add the necessary environment variables:
-
-   ```sh
-   REACT_APP_API_URL=http://localhost:5000
-   REACT_APP_APTOS_NODE_URL=https://fullnode.devnet.aptoslabs.com
-   ```
-
-4. **Start the Frontend Development Server**
-
-   ```sh
-   npm start
-   # or
-   yarn start
-   ```
-
-   The application will be available at `http://localhost:3000`.
-
-### Smart Contract Deployment
-
-1. **Navigate to the Contracts Directory**
-
-   ```sh
-   cd ../contracts
-   ```
-
-2. **Compile and Deploy the Contracts**
-
-   ```sh
-   aptos move compile
-   aptos move publish --url https://fullnode.devnet.aptoslabs.com
-   ```
-
-### Configuration
-
-Ensure that the frontend and backend are correctly configured to interact with the deployed smart contracts. Update the contract addresses and relevant settings in the environment variables.
 
 ## Usage
 
-1. **Access the Application**
+1. Compile and test the smart contract:
 
-   Open your web browser and navigate to `http://localhost:3000`.
-
-2. **Create and Manage NFTs**
-
-   Connect your Aptos wallet, create new NFTs, and manage your NFT collections.
-
-3. **Buy and Sell NFTs**
-
-   Browse available NFTs, list your NFTs for sale, and participate in auctions.
-
-## Testing
-
-1. **Backend Tests**
-
-   ```sh
-   npm test
-   # or
-   yarn test
+   ```bash
+   aptos move compile
+   aptos move test
    ```
 
-2. **Frontend Tests**
+2. Deploy the smart contract:
 
-   ```sh
-   npm test
-   # or
-   yarn test
+   ```bash
+   aptos move publish --package-dir move --profile default
    ```
 
-3. **Smart Contract Tests**
+3. Run the backend:
 
-   Use the Aptos CLI to run tests for your Move contracts.
+   ```bash
+   node index.js
+   ```
 
-## Contributing
+4. Run the frontend:
 
-Contributions are welcome! Please follow these steps to contribute:
-
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature/YourFeature`).
-3. Commit your changes (`git commit -m 'Add YourFeature'`).
-4. Push to the branch (`git push origin feature/YourFeature`).
-5. Open a pull request.
-
-Please ensure your code adheres to our coding standards and includes appropriate tests.
+   ```bash
+   cd aptos-nft-marketplace-frontend
+   npm start
+   ```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
+```
 
-## Acknowledgements
-
-- [Aptos Labs](https://aptoslabs.com/) for their support and documentation.
-- [React](https://reactjs.org/) and [Node.js](https://nodejs.org/) for providing the foundational technologies.
-
-
+This guide gives you a basic structure to build a simple NFT marketplace on Aptos. You can extend and customize it according to your specific needs, such as adding more features, improving the UI, or integrating with other blockchain services.
